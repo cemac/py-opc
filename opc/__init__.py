@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 __version__ = "1.6.0"
 
-__all__ = ['OPCN2', 'OPCN1']
+__all__ = ['OPCN2', 'OPCN1','OPCR1']
 
 class _OPC(object):
     """Generic class for any Alphasense OPC. Provides the common methods and calculations for each OPC. This class is designed to be the base class, and should not be used alone unless during development.
@@ -1130,28 +1130,28 @@ class OPCR1(_OPC):
         SPI_OPC_READY = 0xF3
         SPI_OPC_BUSY = 0x03
 
-        if self.firmware['major'] < firmware_min or self.firmware['major'] > firmware_max:
-            logger.error("Firmware version is invalid for this device.")
-
-            raise FirmwareVersionError("Your firmware is not yet supported. Only version 2 is currently supported.")
+        #if self.firmware['major'] < firmware_min or self.firmware['major'] > firmware_max:
+         #   logger.error("Firmware version is invalid for this device.")     
+          #  raise FirmwareVersionError("Your firmware is not yet supported. Only version 2 is currently supported.")
 
     def get_ready_response(self, SPIcommand):
 
-        message = self.cnxn.xfer(SPIcommand)[0]
+        SPI_OPC_READY = 0xF3
+        SPI_OPC_BUSY = 0x03
+        message = self.cnxn.xfer([SPIcommand])[0]
         sleep(1e-3)
         attempt = 0
-
         while(attempt<20 & message != SPI_OPC_READY):
             attempt+=1
             if(message != SPI_OPC_READY):
-                message = self.cnxn.xfer(SPIcommand)
+                message = self.cnxn.xfer([SPIcommand])[0]
                 if(message != SPI_OPC_READY):
                     sleep(1e-3)   # Wait 1ms before retrying
 
         if(message != SPI_OPC_READY):
             if(message == SPI_OPC_BUSY):
                 self.spi_connection.flush()
-                sleep(2s)
+                sleep(2)
                 raise Exception("ERROR Waiting 2s (for OPC comms timeout)")
             else:
                 self.spi_connection.flush()
@@ -1173,10 +1173,10 @@ class OPCR1(_OPC):
         """
         self.get_ready_response(0x03)          # send the command byte
         sleep(10e-3)                             # sleep for 10 ms
-        b2 = self.cnxn.xfer([0x03])[0]   # send the following byte powers the laser and fan 
+        b2 = self.cnxn.xfer([0x03,0x03])[0]   # send the following byte powers the laser and fan 
         sleep(10)                       # sleep while it is properly powered on
 
-        return True if b2 == SPI_OPC_BUSY else False
+        return True if b2 == 0x03 else False
 
     def off(self):
         """Turn OFF the OPC (fan and laser)
@@ -1193,7 +1193,7 @@ class OPCR1(_OPC):
         b2 = self.cnxn.xfer([0x00])           # send the following byte to turn off laser and fan
         sleep(0.1)
 
-        return True if b2 == SPI_OPC_BUSY else False
+        return True if b2 == 0x03 else False
 
     def config(self):
         """Read the configuration variables and returns them as a dictionary
@@ -1404,14 +1404,14 @@ class OPCR1(_OPC):
 
         # Bins associated with firmware versions 14 and 15(?)
         data['SFR']             = self._calculate_float(resp[36:40])
-        data['Temperature']        = self._16bit_unsigned(resp[41], resp[42])
-        data['Temperature']        = self._16bit_unsigned(resp[43], resp[44])
-        data['Sampling Period'] = self._calculate_float(resp[45:48])
+        data['Temperature']        = self._16bit_unsigned(resp[40], resp[41])
+        data['Humidity']        = self._16bit_unsigned(resp[42], resp[43])
+        data['Sampling Period'] = self._calculate_float(resp[44:48])
         data['Reject count glitch'] = resp[48]
         data['Reject count long'] = resp[49]
-        data['PM1']             = self._calculate_float(resp[50:53])
-        data['PM2.5']           = self._calculate_float(resp[54:57])
-        data['PM10']            = self._calculate_float(resp[58:61])
+        data['PM1']             = self._calculate_float(resp[50:54])
+        data['PM2.5']           = self._calculate_float(resp[54:58])
+        data['PM10']            = self._calculate_float(resp[58:62])
         data['Checksum']        = self._16bit_unsigned(resp[62], resp[63])
 
 
@@ -1424,7 +1424,7 @@ class OPCR1(_OPC):
 
         # Check that checksum and the least significant bits of the sum of histogram bins
         # are equivilant
-        if (MODBUS_CalcCRC(data,62) != data['Checksum']:
+        if (self.MODBUS_CalcCRC(resp,62) != data['Checksum']):
             logger.warning("Data transfer was incomplete")
             return None
 
