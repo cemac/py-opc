@@ -1404,7 +1404,7 @@ class OPCR1(_OPC):
 
         # Bins associated with firmware versions 14 and 15(?)
         data['SFR']             = self._calculate_float(resp[36:40])
-        data['Temperature']        = self_ConvSTtoTemperature(self._16bit_unsigned(resp[40], resp[41]))
+        data['Temperature']        = self._ConvSTtoTemperature(self._16bit_unsigned(resp[40], resp[41]))
         data['Humidity']        = self._ConvSRHtoRelativeHumidity(self._16bit_unsigned(resp[42], resp[43]))
         data['Sampling Period'] = self._calculate_float(resp[44:48])
         data['Reject count glitch'] = resp[48]
@@ -1461,7 +1461,7 @@ class OPCR1(_OPC):
 
 
 
-    def _ConvSRHtoRelativeHumidity(self, SRH)
+    def _ConvSRHtoRelativeHumidity(self, SRH):
         #Convert SHT31 SRH output to Relative Humidity (%):
         return 100*SRH/65535
 
