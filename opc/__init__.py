@@ -1404,8 +1404,8 @@ class OPCR1(_OPC):
 
         # Bins associated with firmware versions 14 and 15(?)
         data['SFR']             = self._calculate_float(resp[36:40])
-        data['Temperature']        = self._16bit_unsigned(resp[40], resp[41])
-        data['Humidity']        = self._16bit_unsigned(resp[42], resp[43])
+        data['Temperature']        = self_ConvSTtoTemperature(self._16bit_unsigned(resp[40], resp[41]))
+        data['Humidity']        = self._ConvSRHtoRelativeHumidity(self._16bit_unsigned(resp[42], resp[43]))
         data['Sampling Period'] = self._calculate_float(resp[44:48])
         data['Reject count glitch'] = resp[48]
         data['Reject count long'] = resp[49]
@@ -1424,7 +1424,7 @@ class OPCR1(_OPC):
 
         # Check that checksum and the least significant bits of the sum of histogram bins
         # are equivilant
-        if (self.MODBUS_CalcCRC(resp,62) != data['Checksum']):
+        if (self._MODBUS_CalcCRC(resp,62) != data['Checksum']):
             logger.warning("Data transfer was incomplete")
             return None
 
@@ -1453,7 +1453,20 @@ class OPCR1(_OPC):
 
         return data
 
-    def MODBUS_CalcCRC(self, data, nbrOfBytes):
+    def _ConvSTtoTemperature(self, ST):
+        #Convert SHT31 ST output to Temperature (C)
+
+        return -45 + 175*ST/65535
+
+
+
+
+    def _ConvSRHtoRelativeHumidity(self, SRH)
+        #Convert SHT31 SRH output to Relative Humidity (%):
+        return 100*SRH/65535
+
+
+    def _MODBUS_CalcCRC(self, data, nbrOfBytes):
 
 
         POLYNOMIAL_MODBUS = 0xA001 #Generator polynomial for MODBUS crc
