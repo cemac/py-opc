@@ -1106,7 +1106,7 @@ class OPCN1(_OPC):
 
 class OPCR1(_OPC):
     """Create an instance of the Alphasene OPC-R1. Currently supported by firmware
-    versions 14-18. opc.OPCR1 inherits from the opc.OPC parent class.
+    versions 2.10. opc.OPCR1 inherits from the opc.OPC parent class.
 
     :param spi_connection: The spidev instance for the SPI connection.
 
@@ -1121,6 +1121,7 @@ class OPCR1(_OPC):
     >>> alpha = opc.OPCR1(spi)
     >>> alpha
     Alphasense OPC-R1v2.10
+
     """
     def __init__(self, spi_connection, **kwargs):
         super(OPCR1, self).__init__(spi_connection, model='R1', **kwargs)
@@ -1173,7 +1174,7 @@ class OPCR1(_OPC):
         """
         self.get_ready_response(0x03)          # send the command byte
         sleep(10e-3)                             # sleep for 10 ms
-        b2 = self.cnxn.xfer([0x03,0x03])[0]   # send the following byte powers the laser and fan 
+        b2 = self.cnxn.xfer([0x03])[0]   # send the following byte powers the laser and fan 
         sleep(10)                       # sleep while it is properly powered on
 
         return True if b2 == 0x03 else False
@@ -1190,116 +1191,212 @@ class OPCR1(_OPC):
         """
         self.get_ready_response(0x03)           # send the command byte
         sleep(10e-3)                             # sleep for 10 ms
-        b2 = self.cnxn.xfer([0x00])           # send the following byte to turn off laser and fan
+        b2 = self.cnxn.xfer([0x00])[0]           # send the following byte to turn off laser and fan
         sleep(0.1)
 
         return True if b2 == 0x03 else False
 
-    def config(self):
-        """Read the configuration variables and returns them as a dictionary
+    def set_laser_power(self, power):
+        """Set the laser power only.
 
-        :rtype: dictionary
+        :param power: Laser power as a value between 0-255.
 
-        :Example:
+        :type power: int
 
-        >>> alpha.config()
-        {
-            'BPD 13': 1.6499,
-            'BPD 12': 1.6499,
-            'BPD 11': 1.6499,
-            'BPD 10': 1.6499,
-            'BPD 15': 1.6499,
-            'BPD 14': 1.6499,
-            'BSVW 15': 1.0,
-            ...
-        }
-        """
-        config  = []
-        data    = {}
-
-        # Send the command byte and sleep for 10 ms
-        self.cnxn.xfer([0x3C])
-        sleep(10e-3)
-
-        # Read the config variables by sending 256 empty bytes
-        for i in range(256):
-            resp = self.cnxn.xfer([0x00])[0]
-            config.append(resp)
-
-        # Add the bin bounds to the dictionary of data [bytes 0-29]
-        for i in range(0, 15):
-            data["Bin Boundary {0}".format(i)] = self._16bit_unsigned(config[2*i], config[2*i + 1])
-
-        # Add the Bin Particle Volumes (BPV) [bytes 32-95]
-        for i in range(0, 16):
-            data["BPV {0}".format(i)] = self._calculate_float(config[4*i + 32:4*i + 36])
-
-        # Add the Bin Particle Densities (BPD) [bytes 96-159]
-        for i in range(0, 16):
-            data["BPD {0}".format(i)] = self._calculate_float(config[4*i + 96:4*i + 100])
-
-        # Add the Bin Sample Volume Weight (BSVW) [bytes 160-223]
-        for i in range(0, 16):
-            data["BSVW {0}".format(i)] = self._calculate_float(config[4*i + 160: 4*i + 164])
-
-        # Add the Gain Scaling Coefficient (GSC) and sample flow rate (SFR)
-        data["GSC"] = self._calculate_float(config[224:228])
-        data["SFR"] = self._calculate_float(config[228:232])
-
-        # Add laser dac (LDAC) and Fan dac (FanDAC)
-        data["LaserDAC"]    = config[232]
-        data["FanDAC"]      = config[233]
-
-        # If past firmware 15, add other things
-        if self.firmware['major'] > 15.:
-            data['TOF_SFR'] = config[234]
-
-        sleep(0.1)
-
-        return data
-
-    @requires_firmware(18.)
-    def config2(self):
-        """Read the second set of configuration variables and return as a dictionary.
-
-        **NOTE: This method is supported by firmware v18+.**
-
-        :rtype: dictionary
+        :rtype: boolean
 
         :Example:
 
-        >>> a.config2()
-        {
-            'AMFanOnIdle': 0,
-            'AMIdleIntervalCount': 0,
-            'AMMaxDataArraysInFile': 61798,
-            'AMSamplingInterval': 1,
-            'AMOnlySavePMData': 0,
-            'AMLaserOnIdle': 0
-        }
+        >>> alpha.set_laser_power(230)
+        True
         """
-        config  = []
-        data    = {}
 
-        # Send the command byte and sleep for 10 ms
-        self.cnxn.xfer([0x3D])
+        # Check to make sure the value is a single byte
+        if power > 255:
+            raise ValueError("Laser Power should be a single byte (0-255).")
+
+        # Send the command byte
+        self.get_ready_response(0x04)
+
+        # Wait 10 ms
         sleep(10e-3)
 
-        # Read the config variables by sending 256 empty bytes
-        for i in range(9):
-            resp = self.cnxn.xfer([0x00])[0]
-            config.append(resp)
-
-        data["AMSamplingInterval"]      = self._16bit_unsigned(config[0], config[1])
-        data["AMIdleIntervalCount"]     = self._16bit_unsigned(config[2], config[3])
-        data['AMFanOnIdle']             = config[4]
-        data['AMLaserOnIdle']           = config[5]
-        data['AMMaxDataArraysInFile']   = self._16bit_unsigned(config[6], config[7])
-        data['AMOnlySavePMData']        = config[8]
+        b = self.cnxn.xfer([power])[0]
 
         sleep(0.1)
 
-        return data
+        return True if b == 0x04 else False
+
+
+    def set_bin_weighting_index(self, bin_weighting_index):
+        """ 
+        """
+
+        if 0 < bin_weighting_index or bin_weighting_index > 10:
+            raise ValueError("Bin weigthing index is an integer between 0 and 10.")
+        if not(bin_weighting_index.is_integer()):
+            raise ValueError("Bin weigthing index is an integer between 0 and 10.")
+
+        # Send the command byte
+        self.get_ready_response(0x05)
+
+        # Wait 10 ms
+        sleep(10e-3)
+
+        b = self.cnxn.xfer([bin_weighting_index])[0]
+
+        sleep(0.1)
+
+        return True if  b == 0x05 else False
+
+    def read_info_string(self):
+        """Reads the information string for the OPC
+
+        :rtype: string
+
+        :Example:
+
+        >>> alpha.read_info_string()
+        'OPC-N2 FirmwareVer=OPC-018.2....................BD'
+        """
+        infostring = []
+
+         # Send the command byte
+        self.get_ready_response(0x3F)
+
+        # Wait 10 ms
+        sleep(10e-3)
+
+        # Read the info string by sending 60 empty bytes
+        for i in range(60):
+            resp = self.cnxn.xfer([0x00])[0]
+            infostring.append(chr(resp))
+
+        sleep(0.1)
+
+        return ''.join(infostring)
+
+    def sn(self):
+        """Read the Serial Number string. This method is only available on OPC-N2
+        firmware versions 18+.
+
+        :rtype: string
+
+        :Example:
+
+        >>> alpha.sn()
+        'OPC-N2 123456789'
+        """
+        string = []
+
+        # Send the command byte
+        self.get_ready_response(0x10)
+
+        # Wait 10 ms
+        sleep(10e-3)
+
+        # Read the info string by sending 60 empty bytes
+        for i in range(60):
+            resp = self.cnxn.xfer([0x00])[0]
+            string.append(chr(resp))
+
+        sleep(0.1)
+
+        return ''.join(string)
+
+
+    def write_sn(self):
+        """Write the Serial Number string.
+
+        **NOTE: This method is currently a placeholder and is not implemented.**
+
+        :param sn: string containing the serial number to write
+
+        :type sn: string
+        """
+
+        return
+
+    def read_firmware(self):
+        """Read the firmware version of the OPC-N2. Firmware v18+ only.
+
+        :rtype: dict
+
+        :Example:
+
+        >>> alpha.read_firmware()
+        {
+            'major': 18,
+            'minor': 2,
+            'version': 18.2
+        }
+        """
+        # Send the command byte
+        self.get_ready_response(0x12)
+
+        # Wait 10 ms
+        sleep(10e-3)
+
+        self.firmware['major'] = self.cnxn.xfer([0x12])[0]
+        self.firmware['minor'] = self.cnxn.xfer([0x12])[0]
+
+        # Build the firmware version
+        self.firmware['version'] = float('{}.{}'.format(self.firmware['major'], self.firmware['minor']))
+
+        sleep(0.1)
+
+        return self.firmware
+
+    def read_config(self):
+            """Read the configuration variables and return as a dictionary.
+
+            **NOTE: This method is supported by firmware v18+.**
+
+            :rtype: dictionary
+
+            :Example:
+
+        
+            """
+            config  = []
+            data    = {}
+
+            # Send the command byte
+            self.get_ready_response(0x12)
+
+            # Wait 10 ms
+            sleep(10e-3)
+
+                    # Read the config variables by sending 256 empty bytes
+            for i in range(256):
+                resp = self.cnxn.xfer([0x00])[0]
+                config.append(resp)
+
+            # Add the bin bounds to the dictionary of data [bytes 0-33]
+            for i in range(0, 16):
+                data["Bin Boundary {0}".format(i)] = self._16bit_unsigned(config[2*i], config[2*i + 1])
+
+            # Add the Bin Boundaries diameter (BDD) [bytes 34-98]
+            for i in range(0, 16):
+                data["BBD {0}".format(i)] = self._calculate_float(config[4*i + 33:4*i + 37])
+
+            # Add the Bin Weighting (BW) [bytes 99-163]
+            for i in range(0, 15):
+                data["BW {0}".format(i)] = self._calculate_float(config[4*i + 99:4*i + 103])
+
+
+            # Add the Gain Scaling Coefficient (GSC) and sample flow rate (SFR)
+            data["GSC"] = self._calculate_float(config[122:126])
+            data["SFR"] = self._calculate_float(config[126:130])
+
+            # Add laser dac (LDAC) and Fan dac (FanDAC)
+            data["TOF_SFR"]    = config[131]
+
+            data["M_A"] = self._16bit_unsigned(config[131:135])
+
+            sleep(0.1)
+
+            return data
 
     def write_config_variables(self, config_vars):
         """ Write configuration variables to non-volatile memory.
@@ -1311,22 +1408,6 @@ class OPCR1(_OPC):
         :type config_vars: dictionary
         """
         logger.warning("This method has not yet been implemented yet.")
-
-        return
-
-    @requires_firmware(18.)
-    def write_config_variables2(self, config_vars):
-        """ Write configuration variables 2 to non-volatile memory.
-
-        **NOTE: This method is currently a placeholder and is not implemented.**
-        **NOTE: This method is supported by firmware v18+.**
-
-        :param config_vars: dictionary containing the configuration variables
-
-        :type config_vars: dictionary
-        """
-
-        logger.warning("This method has not yet been implemented.")
 
         return
 
@@ -1372,8 +1453,6 @@ class OPCR1(_OPC):
         # Wait 10 ms
         sleep(10e-3)
 
-
-        sleep(10e-6)    # sleep for 10us
         # read the histogram
         for i in range(64):
             r = self.cnxn.xfer([0x00])[0]
@@ -1414,14 +1493,6 @@ class OPCR1(_OPC):
         data['PM10']            = self._calculate_float(resp[58:62])
         data['Checksum']        = self._16bit_unsigned(resp[62], resp[63])
 
-
-        # Calculate the sum of the histogram bins
-        histogram_sum = data['Bin 0'] + data['Bin 1'] + data['Bin 2']   + \
-                data['Bin 3'] + data['Bin 4'] + data['Bin 5'] + data['Bin 6']   + \
-                data['Bin 7'] + data['Bin 8'] + data['Bin 9'] + data['Bin 10']  + \
-                data['Bin 11'] + data['Bin 12'] + data['Bin 13'] + data['Bin 14'] + \
-                data['Bin 15']
-
         # Check that checksum and the least significant bits of the sum of histogram bins
         # are equivilant
         if (self._MODBUS_CalcCRC(resp,62) != data['Checksum']):
@@ -1448,6 +1519,52 @@ class OPCR1(_OPC):
             data['Bin 13']  = data['Bin 13'] / _conv_
             data['Bin 14']  = data['Bin 14'] / _conv_
             data['Bin 15']  = data['Bin 15'] / _conv_
+
+        sleep(0.1)
+
+        return data
+
+    def pm(self):
+        """Read the PM data and reset the histogram
+
+        :rtype: dictionary
+
+        :Example:
+
+        >>> alpha.pm()
+        {
+            'PM1': 0.12,
+            'PM2.5': 0.24,
+            'PM10': 1.42
+        }
+        """
+
+        resp = []
+        data = {}
+
+        # Send the command byte
+        self.get_ready_response(0x32)
+
+        # Wait 10 ms
+        sleep(10e-3)
+
+        # read the histogram
+        for i in range(14):
+            r = self.cnxn.xfer([0x00])[0]
+            resp.append(r)
+
+        # convert to real things and store in dictionary!
+        data['PM1']     = self._calculate_float(resp[0:4])
+        data['PM2.5']   = self._calculate_float(resp[4:8])
+        data['PM10']    = self._calculate_float(resp[8:12])
+
+        data['Checksum'] = self._16bit_unsigned(resp[12], resp[13])
+
+        # Check that checksum and the least significant bits of the sum of histogram bins
+        # are equivilant
+        if (self._MODBUS_CalcCRC(resp,14) != data['Checksum']):
+            logger.warning("Data transfer was incomplete")
+            return None
 
         sleep(0.1)
 
@@ -1485,7 +1602,50 @@ class OPCR1(_OPC):
                     crc>>=1
         return crc
 
-    def save_config_variables(self):
+
+
+     
+
+    def pm(self):
+        """Read the PM data and reset the histogram
+
+        :rtype: dictionary
+
+        :Example:
+
+        >>> alpha.pm()
+        {
+            'PM1': 0.12,
+            'PM2.5': 0.24,
+            'PM10': 1.42
+        }
+        """
+
+        resp = []
+        data = {}
+
+        # Send the command byte
+        self.get_ready_response(0x11)
+
+        # Wait 10 ms
+        sleep(10e-3)
+
+        # read the histogram
+        for i in range(12):
+            r = self.cnxn.xfer([0x00])[0]
+            resp.append(r)
+
+        # convert to real things and store in dictionary!
+        data['PM1']     = self._calculate_float(resp[0:4])
+        data['PM2.5']   = self._calculate_float(resp[4:8])
+        data['PM10']    = self._calculate_float(resp[8:])
+
+        sleep(0.1)
+
+        return data
+
+    
+   def save_config_variables(self):
         """Save the configuration variables in non-volatile memory. This method
         should be used in conjuction with *write_config_variables*.
 
@@ -1497,12 +1657,14 @@ class OPCR1(_OPC):
         True
         """
         command = 0x43
-        byte_list = [0x3F, 0x3C, 0x3F, 0x3C, 0x43]
-        success = [0xF3, 0x43, 0x3F, 0x3C, 0x3F, 0x3C]
+        byte_list = [0x3C, 0x3F, 0x3C, 0x43]
+        success = [ 0x43, 0x3F, 0x3C, 0x3F, 0x3C]
         resp = []
 
-        # Send the command byte and then wait for 10 ms
-        r = self.cnxn.xfer([command])[0]
+        # Send the command byte
+        self.get_ready_response(0x11)
+
+        # Wait 10 ms
         sleep(10e-3)
 
         # append the response of the command byte to the List
@@ -1531,270 +1693,22 @@ class OPCR1(_OPC):
 
         return True if self.cnxn.xfer(0x41)[0] == 0xF3 else False
 
-    def set_fan_power(self, power):
-        """Set only the Fan power.
-
-        :param power: Fan power value as an integer between 0-255.
-
-        :type power: int
-
-        :rtype: boolean
-
-        :Example:
-
-        >>> alpha.set_fan_power(255)
-        True
-        """
-        # Check to make sure the value is a single byte
-        if power > 255:
-            raise ValueError("The fan power should be a single byte (0-255).")
-
-        # Send the command byte and wait 10 ms
-        a = self.cnxn.xfer([0x42])[0]
-        sleep(10e-3)
-
-        # Send the next two bytes
-        b = self.cnxn.xfer([0x00])[0]
-        c = self.cnxn.xfer([power])[0]
-
-        sleep(0.1)
-
-        return True if a == 0xF3 and b == 0x42 and c == 0x00 else False
-
-    def set_laser_power(self, power):
-        """Set the laser power only.
-
-        :param power: Laser power as a value between 0-255.
-
-        :type power: int
-
-        :rtype: boolean
-
-        :Example:
-
-        >>> alpha.set_laser_power(230)
-        True
-        """
-
-        # Check to make sure the value is a single byte
-        if power > 255:
-            raise ValueError("Laser Power should be a single byte (0-255).")
-
-        # Send the command byte and wait 10 ms
-        a = self.cnxn.xfer([0x42])[0]
-        sleep(10e-3)
-
-        # Send the next two bytes
-        b = self.cnxn.xfer([0x01])[0]
-        c = self.cnxn.xfer([power])[0]
-
-        sleep(0.1)
-
-        return True if a == 0xF3 and b == 0x42 and c == 0x01 else False
-
-    def toggle_laser(self, state):
-        """Toggle the power state of the laser.
-
-        :param state: Boolean state of the laser
-
-        :type state: boolean
-
-        :rtype: boolean
-
-        :Example:
-
-        >>> alpha.toggle_laser(True)
-        True
-        """
-
-        # Send the command byte and wait 10 ms
-        a = self.cnxn.xfer([0x03])[0]
-
-        sleep(10e-3)
-
-        # If state is true, turn the laser ON, else OFF
-        if state:
-            b = self.cnxn.xfer([0x02])[0]
-        else:
-            b = self.cnxn.xfer([0x03])[0]
-
-        sleep(0.1)
-
-        return True if a == 0xF3 and b == 0x03 else False
-
-    def toggle_fan(self, state):
-        """Toggle the power state of the fan.
-
-        :param state: Boolean state of the fan
-
-        :type state: boolean
-
-        :rtype: boolean
-
-        :Example:
-
-        >>> alpha.toggle_fan(False)
-        True
-        """
-
-        # Send the command byte and wait 10 ms
-        a = self.cnxn.xfer([0x03])[0]
-
-        sleep(10e-3)
-
-        # If state is true, turn the fan ON, else OFF
-        if state:
-            b = self.cnxn.xfer([0x04])[0]
-        else:
-            b = self.cnxn.xfer([0x05])[0]
-
-        sleep(0.1)
-
-        return True if a == 0xF3 and b == 0x03 else False
-
-    @requires_firmware(18.)
-    def read_pot_status(self):
-        """Read the status of the digital pot. Firmware v18+ only.
-        The return value is a dictionary containing the following as
-        unsigned 8-bit integers: FanON, LaserON, FanDACVal, LaserDACVal.
-
-        :rtype: dict
-
-        :Example:
-
-        >>> alpha.read_pot_status()
-        {
-            'LaserDACVal': 230,
-            'FanDACVal': 255,
-            'FanON': 0,
-            'LaserON': 0
-        }
-        """
-        # Send the command byte and wait 10 ms
-        a = self.cnxn.xfer([0x13])[0]
-
-        sleep(10e-3)
-
-        # Build an array of the results
-        res = []
-        for i in range(4):
-            res.append(self.cnxn.xfer([0x00])[0])
-
-        sleep(0.1)
-
-        return {
-            'FanON':        res[0],
-            'LaserON':      res[1],
-            'FanDACVal':    res[2],
-            'LaserDACVal':  res[3]
-            }
-
-    @requires_firmware(18.)
-    def sn(self):
-        """Read the Serial Number string. This method is only available on OPC-N2
-        firmware versions 18+.
-
-        :rtype: string
-
-        :Example:
-
-        >>> alpha.sn()
-        'OPC-N2 123456789'
-        """
-        string = []
-
-        # Send the command byte and sleep for 9 ms
-        self.cnxn.xfer([0x10])
-        sleep(9e-3)
-
-        # Read the info string by sending 60 empty bytes
-        for i in range(60):
-            resp = self.cnxn.xfer([0x00])[0]
-            string.append(chr(resp))
-
-        sleep(0.1)
-
-        return ''.join(string)
-
-    @requires_firmware(18.)
-    def write_sn(self):
-        """Write the Serial Number string. This method is available for Firmware versions 18+.
-
-        **NOTE: This method is currently a placeholder and is not implemented.**
-
-        :param sn: string containing the serial number to write
-
-        :type sn: string
-        """
-
-        return
-
-    @requires_firmware(18.)
-    def read_firmware(self):
-        """Read the firmware version of the OPC-N2. Firmware v18+ only.
-
-        :rtype: dict
-
-        :Example:
-
-        >>> alpha.read_firmware()
-        {
-            'major': 18,
-            'minor': 2,
-            'version': 18.2
-        }
-        """
-        # Send the command byte and sleep for 9 ms
-        self.cnxn.xfer([0x12])
-        sleep(10e-3)
-
-        self.firmware['major'] = self.cnxn.xfer([0x00])[0]
-        self.firmware['minor'] = self.cnxn.xfer([0x00])[0]
-
-        # Build the firmware version
-        self.firmware['version'] = float('{}.{}'.format(self.firmware['major'], self.firmware['minor']))
-
-        sleep(0.1)
-
-        return self.firmware
-
-    @requires_firmware(18.)
-    def pm(self):
-        """Read the PM data and reset the histogram
-
-        **NOTE: This method is supported by firmware v18+.**
-
-        :rtype: dictionary
-
-        :Example:
-
-        >>> alpha.pm()
-        {
-            'PM1': 0.12,
-            'PM2.5': 0.24,
-            'PM10': 1.42
-        }
-        """
-
-        resp = []
-        data = {}
+    def check_status(self):
 
         # Send the command byte
-        self.cnxn.xfer([0x32])
+        self.get_ready_response(0xCF)
 
         # Wait 10 ms
         sleep(10e-3)
 
-        # read the histogram
-        for i in range(12):
-            r = self.cnxn.xfer([0x00])[0]
-            resp.append(r)
+        return True
 
-        # convert to real things and store in dictionary!
-        data['PM1']     = self._calculate_float(resp[0:4])
-        data['PM2.5']   = self._calculate_float(resp[4:8])
-        data['PM10']    = self._calculate_float(resp[8:])
+    def reset(self):
 
-        sleep(0.1)
+        # Send the command byte
+        self.get_ready_response(0x06)
 
-        return data
+        # Wait 10 ms
+        sleep(10e-3)
+
+        return True
