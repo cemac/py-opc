@@ -1645,7 +1645,7 @@ class OPCR1(_OPC):
         return data
 
     
-   def save_config_variables(self):
+    def save_config_variables(self):
         """Save the configuration variables in non-volatile memory. This method
         should be used in conjuction with *write_config_variables*.
 
