@@ -1124,7 +1124,7 @@ class OPCR1(_OPC):
 
     """
     def __init__(self, spi_connection, **kwargs):
-        super(OPCR1, self).__init__(spi_connection, model='R1', **kwargs)
+        super(OPCR1, self).__init__(spi_connection, model='R1', firmware=(2, 10), **kwargs)
 
         firmware_min = 2.   # Minimum firmware version supported
         firmware_max = 2.   # Maximum firmware version supported
