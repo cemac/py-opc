@@ -1128,8 +1128,6 @@ class OPCR1(_OPC):
 
         firmware_min = 2.   # Minimum firmware version supported
         firmware_max = 2.   # Maximum firmware version supported
-        SPI_OPC_READY = 0xF3
-        SPI_OPC_BUSY = 0x03
 
         #if self.firmware['major'] < firmware_min or self.firmware['major'] > firmware_max:
          #   logger.error("Firmware version is invalid for this device.")     
@@ -1138,19 +1136,19 @@ class OPCR1(_OPC):
     def get_ready_response(self, SPIcommand):
 
         SPI_OPC_READY = 0xF3
-        SPI_OPC_BUSY = 0x03
+        SPI_OPC_BUSY = 0x31
         message = self.cnxn.xfer([SPIcommand])[0]
         sleep(1e-3)
         attempt = 0
-        while(attempt<20 & message != SPI_OPC_READY):
-            attempt+=1
-            if(message != SPI_OPC_READY):
+        while attempt < 20 & message != SPI_OPC_READY:
+            attempt += 1
+            if message != SPI_OPC_READY:
                 message = self.cnxn.xfer([SPIcommand])[0]
-                if(message != SPI_OPC_READY):
+                if message != SPI_OPC_READY:
                     sleep(1e-3)   # Wait 1ms before retrying
 
-        if(message != SPI_OPC_READY):
-            if(message == SPI_OPC_BUSY):
+        if message != SPI_OPC_READY:
+            if message == SPI_OPC_BUSY:
                 self.spi_connection.flush()
                 sleep(2)
                 raise Exception("ERROR Waiting 2s (for OPC comms timeout)")
@@ -1174,10 +1172,10 @@ class OPCR1(_OPC):
         """
         self.get_ready_response(0x03)          # send the command byte
         sleep(10e-3)                             # sleep for 10 ms
-        b2 = self.cnxn.xfer([0x03])[0]   # send the following byte powers the laser and fan 
+        byte_2 = self.cnxn.xfer([0x03])[0]   # send the following byte powers the laser and fan 
         sleep(10)                       # sleep while it is properly powered on
 
-        return True if b2 == 0x03 else False
+        return True if byte_2 == 0x03 else False
 
     def off(self):
         """Turn OFF the OPC (fan and laser)
@@ -1191,10 +1189,10 @@ class OPCR1(_OPC):
         """
         self.get_ready_response(0x03)           # send the command byte
         sleep(10e-3)                             # sleep for 10 ms
-        b2 = self.cnxn.xfer([0x00])[0]           # send the following byte to turn off laser and fan
+        byte_2 = self.cnxn.xfer([0x00])[0] # send the following byte to turn off laser and fan          
         sleep(0.1)
 
-        return True if b2 == 0x03 else False
+        return True if byte_2 == 0x03 else False
 
     def set_laser_power(self, power):
         """Set the laser power only.
@@ -1232,9 +1230,9 @@ class OPCR1(_OPC):
         """ 
         """
 
-        if 0 < bin_weighting_index or bin_weighting_index > 10:
+        if bin_weighting_index < 0 or bin_weighting_index > 10:
             raise ValueError("Bin weigthing index is an integer between 0 and 10.")
-        if not(bin_weighting_index.is_integer()):
+        if not bin_weighting_index.is_integer():
             raise ValueError("Bin weigthing index is an integer between 0 and 10.")
 
         # Send the command byte
@@ -1341,62 +1339,64 @@ class OPCR1(_OPC):
         self.firmware['minor'] = self.cnxn.xfer([0x12])[0]
 
         # Build the firmware version
-        self.firmware['version'] = float('{}.{}'.format(self.firmware['major'], self.firmware['minor']))
+        self.firmware['version'] = float('{}.{}'.format(self.firmware['major'], 
+                                                        self.firmware['minor']))
 
         sleep(0.1)
 
         return self.firmware
 
     def read_config(self):
-            """Read the configuration variables and return as a dictionary.
+        """
+        Read the configuration variables and return as a dictionary.
 
-            **NOTE: This method is supported by firmware v18+.**
+        **NOTE: This method is supported by firmware v18+.**
 
-            :rtype: dictionary
+        :rtype: dictionary
 
-            :Example:
+        :Example:
 
-        
-            """
-            config  = []
-            data    = {}
+    
+        """
+        config = []
+        data = {}
 
-            # Send the command byte
-            self.get_ready_response(0x12)
+        # Send the command byte
+        self.get_ready_response(0x12)
 
-            # Wait 10 ms
-            sleep(10e-3)
+        # Wait 10 ms
+        sleep(10e-3)
 
-                    # Read the config variables by sending 256 empty bytes
-            for i in range(256):
-                resp = self.cnxn.xfer([0x00])[0]
-                config.append(resp)
+                # Read the config variables by sending 256 empty bytes
+        for i in range(256):
+            resp = self.cnxn.xfer([0x00])[0]
+            config.append(resp)
 
-            # Add the bin bounds to the dictionary of data [bytes 0-33]
-            for i in range(0, 16):
-                data["Bin Boundary {0}".format(i)] = self._16bit_unsigned(config[2*i], config[2*i + 1])
+        # Add the bin bounds to the dictionary of data [bytes 0-33]
+        for i in range(0, 16):
+            data["Bin Boundary {0}".format(i)] = self._16bit_unsigned(config[2*i], config[2*i + 1])
 
-            # Add the Bin Boundaries diameter (BDD) [bytes 34-98]
-            for i in range(0, 16):
-                data["BBD {0}".format(i)] = self._calculate_float(config[4*i + 33:4*i + 37])
+        # Add the Bin Boundaries diameter (BDD) [bytes 34-98]
+        for i in range(0, 16):
+            data["BBD {0}".format(i)] = self._calculate_float(config[4*i + 33:4*i + 37])
 
-            # Add the Bin Weighting (BW) [bytes 99-163]
-            for i in range(0, 15):
-                data["BW {0}".format(i)] = self._calculate_float(config[4*i + 99:4*i + 103])
+        # Add the Bin Weighting (BW) [bytes 99-163]
+        for i in range(0, 15):
+            data["BW {0}".format(i)] = self._calculate_float(config[4*i + 99:4*i + 103])
 
 
-            # Add the Gain Scaling Coefficient (GSC) and sample flow rate (SFR)
-            data["GSC"] = self._calculate_float(config[122:126])
-            data["SFR"] = self._calculate_float(config[126:130])
+        # Add the Gain Scaling Coefficient (GSC) and sample flow rate (SFR)
+        data["GSC"] = self._calculate_float(config[122:126])
+        data["SFR"] = self._calculate_float(config[126:130])
 
-            # Add laser dac (LDAC) and Fan dac (FanDAC)
-            data["TOF_SFR"]    = config[131]
+        # Add laser dac (LDAC) and Fan dac (FanDAC)
+        data["TOF_SFR"] = config[131]
 
-            data["M_A"] = self._16bit_unsigned(config[131:135])
+        data["M_A"] = self._16bit_unsigned(config[131:135])
 
-            sleep(0.1)
+        sleep(0.1)
 
-            return data
+        return data
 
     def write_config_variables(self, config_vars):
         """ Write configuration variables to non-volatile memory.
@@ -1495,7 +1495,7 @@ class OPCR1(_OPC):
 
         # Check that checksum and the least significant bits of the sum of histogram bins
         # are equivilant
-        if (self._MODBUS_CalcCRC(resp,62) != data['Checksum']):
+        if self._MODBUS_CalcCRC(resp,62) != data['Checksum']:
             logger.warning("Data transfer was incomplete")
             return None
 
@@ -1562,7 +1562,7 @@ class OPCR1(_OPC):
 
         # Check that checksum and the least significant bits of the sum of histogram bins
         # are equivilant
-        if (self._MODBUS_CalcCRC(resp,14) != data['Checksum']):
+        if self._MODBUS_CalcCRC(resp,14) != data['Checksum']:
             logger.warning("Data transfer was incomplete")
             return None
 
@@ -1601,48 +1601,6 @@ class OPCR1(_OPC):
                 else:
                     crc>>=1
         return crc
-
-
-
-     
-
-    def pm(self):
-        """Read the PM data and reset the histogram
-
-        :rtype: dictionary
-
-        :Example:
-
-        >>> alpha.pm()
-        {
-            'PM1': 0.12,
-            'PM2.5': 0.24,
-            'PM10': 1.42
-        }
-        """
-
-        resp = []
-        data = {}
-
-        # Send the command byte
-        self.get_ready_response(0x11)
-
-        # Wait 10 ms
-        sleep(10e-3)
-
-        # read the histogram
-        for i in range(12):
-            r = self.cnxn.xfer([0x00])[0]
-            resp.append(r)
-
-        # convert to real things and store in dictionary!
-        data['PM1']     = self._calculate_float(resp[0:4])
-        data['PM2.5']   = self._calculate_float(resp[4:8])
-        data['PM10']    = self._calculate_float(resp[8:])
-
-        sleep(0.1)
-
-        return data
 
     
     def save_config_variables(self):
