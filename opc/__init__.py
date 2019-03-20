@@ -1228,6 +1228,16 @@ class OPCR1(_OPC):
 
     def set_bin_weighting_index(self, bin_weighting_index):
         """ 
+        :param bin_weighting_index: Bin weigthing index is an integer between 0 and 10.
+
+        :type bin_weighting_index: int
+
+        :rtype: boolean
+
+        :Example:
+
+        >>> alpha.set_bin_weighting_index(2)
+        True
         """
 
         if bin_weighting_index < 0 or bin_weighting_index > 10:
@@ -1350,7 +1360,7 @@ class OPCR1(_OPC):
         """
         Read the configuration variables and return as a dictionary.
 
-        **NOTE: This method is supported by firmware v18+.**
+        **NOTE: This method has not been tested on the OPCR1
 
         :rtype: dictionary
 
@@ -1483,8 +1493,8 @@ class OPCR1(_OPC):
 
         # Bins associated with firmware versions 14 and 15(?)
         data['SFR']             = self._calculate_float(resp[36:40])
-        data['Temperature']        = self._ConvSTtoTemperature(self._16bit_unsigned(resp[40], resp[41]))
-        data['Humidity']        = self._ConvSRHtoRelativeHumidity(self._16bit_unsigned(resp[42], resp[43]))
+        data['Temperature']        = self._conv_st_to_temperature(self._16bit_unsigned(resp[40], resp[41]))
+        data['Humidity']        = self._conv_srh_to_relative_humidity(self._16bit_unsigned(resp[42], resp[43]))
         data['Sampling Period'] = self._calculate_float(resp[44:48])
         data['Reject count glitch'] = resp[48]
         data['Reject count long'] = resp[49]
@@ -1495,7 +1505,7 @@ class OPCR1(_OPC):
 
         # Check that checksum and the least significant bits of the sum of histogram bins
         # are equivilant
-        if self._MODBUS_CalcCRC(resp,62) != data['Checksum']:
+        if self._modbus_calc_crc(resp, 62) != data['Checksum']:
             logger.warning("Data transfer was incomplete")
             return None
 
@@ -1562,7 +1572,7 @@ class OPCR1(_OPC):
 
         # Check that checksum and the least significant bits of the sum of histogram bins
         # are equivilant
-        if self._MODBUS_CalcCRC(resp,14) != data['Checksum']:
+        if self._modbus_calc_crc(resp,14) != data['Checksum']:
             logger.warning("Data transfer was incomplete")
             return None
 
@@ -1570,7 +1580,7 @@ class OPCR1(_OPC):
 
         return data
 
-    def _ConvSTtoTemperature(self, ST):
+    def _conv_st_to_temperature(self, ST):
         #Convert SHT31 ST output to Temperature (C)
 
         return -45 + 175*ST/65535
@@ -1578,28 +1588,28 @@ class OPCR1(_OPC):
 
 
 
-    def _ConvSRHtoRelativeHumidity(self, SRH):
+    def _conv_srh_to_relative_humidity(self, SRH):
         #Convert SHT31 SRH output to Relative Humidity (%):
         return 100*SRH/65535
 
 
-    def _MODBUS_CalcCRC(self, data, nbrOfBytes):
+    def _modbus_calc_crc(self, data, nbr_of_bytes):
 
 
-        POLYNOMIAL_MODBUS = 0xA001 #Generator polynomial for MODBUS crc
-        InitCRCval_MODBUS = 0xFFFF #Initial CRC value
+        polynomial_modbus = 0xA001 #Generator polynomial for MODBUS crc
+        init_crc_val_modbus = 0xFFFF #Initial CRC value
 
-        crc = InitCRCval_MODBUS
-        byteCtr = 0
-        while(byteCtr<nbrOfBytes):
-            crc ^= data[byteCtr]
-            byteCtr+=1
+        crc = init_crc_val_modbus
+        byte_ctr = 0
+        while byte_ctr < nbr_of_bytes:
+            crc ^= data[byte_ctr]
+            byte_ctr += 1
             for i in range(0,8):
                 if crc & 1:
-                    crc >>=1
-                    crc ^= POLYNOMIAL_MODBUS
+                    crc >>= 1
+                    crc ^= polynomial_modbus
                 else:
-                    crc>>=1
+                    crc >>= 1
         return crc
 
     
