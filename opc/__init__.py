@@ -1133,30 +1133,39 @@ class OPCR1(_OPC):
          #   logger.error("Firmware version is invalid for this device.")     
           #  raise FirmwareVersionError("Your firmware is not yet supported. Only version 2 is currently supported.")
 
-    def get_ready_response(self, SPIcommand):
+    def get_ready_response(self, spi_command):
+    	"""
+    	Verify that the OPC is ready for communication
+    	Flushes the SPI connection if 0x31 is returned after 20 attempts
+    	or reset the OPC otherwise.
 
-        SPI_OPC_READY = 0xF3
-        SPI_OPC_BUSY = 0x31
-        message = self.cnxn.xfer([SPIcommand])[0]
+    	:param spi_command: The command to be sent to the sensor
+
+    	:rtype: NULL
+    	"""
+
+        spi_opc_ready = 0xF3
+        spi_opc_busy = 0x31
+        message = self.cnxn.xfer([spi_command])[0]
         sleep(1e-3)
         attempt = 0
-        while attempt < 20 & message != SPI_OPC_READY:
+        while attempt < 20 & message != spi_opc_ready:
             attempt += 1
-            if message != SPI_OPC_READY:
-                message = self.cnxn.xfer([SPIcommand])[0]
-                if message != SPI_OPC_READY:
+            if message != spi_opc_ready:
+                message = self.cnxn.xfer([spi_command])[0]
+                if message != spi_opc_ready:
                     sleep(1e-3)   # Wait 1ms before retrying
 
-        if message != SPI_OPC_READY:
-            if message == SPI_OPC_BUSY:
+        if message != spi_opc_ready:
+            if message == spi_opc_busy:
                 self.spi_connection.flush()
                 sleep(2)
-                raise Exception("ERROR Waiting 2s (for OPC comms timeout)")
+                raise Exception("Waiting 2s (for OPC comms timeout)")
             else:
                 self.spi_connection.flush()
                 self.off()
                 self.on()
-                raise Exception("ERROR Resetting the sensor")
+                raise Exception("Resetting the sensor")
 
                 
 
@@ -1580,17 +1589,17 @@ class OPCR1(_OPC):
 
         return data
 
-    def _conv_st_to_temperature(self, ST):
+    def _conv_st_to_temperature(self, st):
         #Convert SHT31 ST output to Temperature (C)
 
-        return -45 + 175*ST/65535
+        return -45 + 175*st/65535
 
 
 
 
-    def _conv_srh_to_relative_humidity(self, SRH):
+    def _conv_srh_to_relative_humidity(self, srh):
         #Convert SHT31 SRH output to Relative Humidity (%):
-        return 100*SRH/65535
+        return 100*srh/65535
 
 
     def _modbus_calc_crc(self, data, nbr_of_bytes):
