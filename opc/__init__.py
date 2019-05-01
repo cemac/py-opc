@@ -1411,7 +1411,7 @@ class OPCR1(_OPC):
         # Add laser dac (LDAC) and Fan dac (FanDAC)
         data["TOF_SFR"] = config[131]
 
-        data["M_A"] = self._16bit_unsigned(config[131:135])
+        data["M_A"] = self._calculate_float(config[131:135])
 
         sleep(0.1)
 
