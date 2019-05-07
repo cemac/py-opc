@@ -1380,7 +1380,7 @@ class OPCR1(_OPC):
         data = {}
 
         # Send the command byte
-        self.get_ready_response(0x12)
+        self.get_ready_response(0x3C)
 
         # Wait 10 ms
         sleep(10e-3)
