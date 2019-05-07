@@ -1134,16 +1134,15 @@ class OPCR1(_OPC):
           #  raise FirmwareVersionError("Your firmware is not yet supported. Only version 2 is currently supported.")
 
     def get_ready_response(self, spi_command):
-    	"""
-    	Verify that the OPC is ready for communication
-    	Flushes the SPI connection if 0x31 is returned after 20 attempts
-    	or reset the OPC otherwise.
+        """
+        Verify that the OPC is ready for communication
+        Flushes the SPI connection if 0x31 is returned after 20 attempts
+        or reset the OPC otherwise.
 
-    	:param spi_command: The command to be sent to the sensor
+        :param spi_command: The command to be sent to the sensor
 
-    	:rtype: NULL
-    	"""
-
+        :rtype: NULL
+        """
         spi_opc_ready = 0xF3
         spi_opc_busy = 0x31
         message = self.cnxn.xfer([spi_command])[0]
@@ -1158,11 +1157,11 @@ class OPCR1(_OPC):
 
         if message != spi_opc_ready:
             if message == spi_opc_busy:
-                self.spi_connection.flush()
+                self.cnxn.flush()
                 sleep(2)
                 raise Exception("Waiting 2s (for OPC comms timeout)")
             else:
-                self.spi_connection.flush()
+                self.cnxn .flush()
                 self.off()
                 self.on()
                 raise Exception("Resetting the sensor")
