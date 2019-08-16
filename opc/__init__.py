@@ -1599,7 +1599,7 @@ class OPCR1(_OPC):
 
         # Check that checksum and the least significant bits of the sum of histogram bins
         # are equivilant
-        if self._modbus_calc_crc(resp,14) != data['Checksum']:
+        if self._modbus_calc_crc(resp, 12) != data['Checksum']:
             logger.warning("Data transfer was incomplete")
             return None
 
@@ -1651,6 +1651,9 @@ class OPCR1(_OPC):
         >>> alpha.save_config_variables()
         True
         """
+
+        logger.warning("This method has not yet been tested yet. Use it at your own risks")
+
         command = 0x43
         byte_list = [0x3C, 0x3F, 0x3C, 0x43]
         success = [ 0x43, 0x3F, 0x3C, 0x3F, 0x3C]
