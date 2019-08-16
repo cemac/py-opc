@@ -11,7 +11,7 @@ import logging
 from .exceptions import firmware_error_msg
 
 # set up a default logger
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 __version__ = "1.6.3"
@@ -1145,23 +1145,22 @@ class OPCR1(_OPC):
         :rtype: NULL
         """
 
-        message =self._attempt_get_ready_response(spi_command)
-        logger.debug("Byte received: 0x%02x",message)
+        message = self._attempt_get_ready_response(spi_command)
+        logger.debug("Last byte received: 0x%02x",message)
+
         if message != self.spi_opc_ready:
-            if message == self.spi_opc_busy:
-                logger.warning("OPCR1 busy")
-                #self.cnxn.flush()
-                sleep(2)
-                logger.warning("Waiting 2s (for OPC comms timeout)")
-                message = self._attempt_get_ready_response(spi_command)
-                if message != self.spi_opc_ready:
-                    logger.error("OPCR1 not responding - quitting")
-                    self.cnxn.close()
-                    quit(1)
-            else:
+
+            logger.warning("OPCR1 busy")
+            #self.cnxn.flush()
+            sleep(2)
+            logger.warning("Waiting 2s (for OPC comms timeout)")
+            message = self._attempt_get_ready_response(spi_command)
+            if message != self.spi_opc_ready:
                 logger.error("OPCR1 not responding - quitting")
                 self.cnxn.close()
                 quit(1)
+
+        return True
 
                 
     def _attempt_get_ready_response(self, spi_command):
@@ -1176,6 +1175,7 @@ class OPCR1(_OPC):
                 message = self.cnxn.xfer([spi_command])[0]
                 if message != self.spi_opc_ready:
                     sleep(1e-3)   # Wait 1ms before retrying
+        logger.debug("Number of attempts: %s",attempt)
         return message
 
     def on(self):
@@ -1395,33 +1395,42 @@ class OPCR1(_OPC):
         # Wait 10 ms
         sleep(10e-3)
 
-                # Read the config variables by sending 256 empty bytes
-        for i in range(256):
+                # Read the config variables by sending 193 empty bytes
+        for i in range(193):
             resp = self.cnxn.xfer([0x3C])[0]
             config.append(resp)
-
         # Add the bin bounds to the dictionary of data [bytes 0-33]
-        for i in range(0, 16):
+        for i in range(0, 17):
             data["Bin Boundary {0}".format(i)] = self._16bit_unsigned(config[2*i], config[2*i + 1])
 
-        # Add the Bin Boundaries diameter (BDD) [bytes 34-98]
-        for i in range(0, 16):
-            data["BBD {0}".format(i)] = self._calculate_float(config[4*i + 33:4*i + 37])
+        # Add the Bin Boundaries diameter (BDD) [bytes 34-101]
+        for i in range(0, 17):
+            data["BBD {0}".format(i)] = self._calculate_float(config[4*i + 34:4*i + 38])
 
-        # Add the Bin Weighting (BW) [bytes 99-163]
-        for i in range(0, 15):
-            data["BW {0}".format(i)] = self._calculate_float(config[4*i + 99:4*i + 103])
+        # Add the Bin Weighting (BW) [bytes 102-165]
+        for i in range(0, 16):
+            data["BW {0}".format(i)] = self._calculate_float(config[4*i + 102:4*i + 106])
 
 
         # Add the Gain Scaling Coefficient (GSC) and sample flow rate (SFR)
-        data["GSC"] = self._calculate_float(config[122:126])
-        data["SFR"] = self._calculate_float(config[126:130])
+        data["GSC"] = self._calculate_float(config[166:170])
+        data["SFR"] = self._calculate_float(config[170:174])
 
         # Add laser dac (LDAC) and Fan dac (FanDAC)
-        data["TOF_SFR"] = config[131]
+        data["TOF_SFR"] = config[174]
 
-        data["M_A"] = self._calculate_float(config[131:135])
+        data["M_A"] = self._calculate_float(config[175:179])
+        data["M_B"] = self._calculate_float(config[179:183])
+        data["M_C"] = self._calculate_float(config[183:187])
 
+        data["PVP"] = config[187]
+        data["PowerStatus"] = config[188]
+
+        data["Max TOF"] = self._16bit_unsigned(config[189],config[190])
+
+        data["LaserDAC"] = config[191]
+
+        data["BinWeightingIndex"] = config[192]
         sleep(0.1)
 
         return data
