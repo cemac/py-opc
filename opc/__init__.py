@@ -11,7 +11,7 @@ import logging
 from .exceptions import firmware_error_msg
 
 # set up a default logger
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 __version__ = "1.6.3"
@@ -1128,7 +1128,8 @@ class OPCR1(_OPC):
 
         firmware_min = 2.   # Minimum firmware version supported
         firmware_max = 2.   # Maximum firmware version supported
-
+        self.spi_opc_ready = 0xF3
+        self.spi_opc_busy = 0x31
         #if self.firmware['major'] < firmware_min or self.firmware['major'] > firmware_max:
          #   logger.error("Firmware version is invalid for this device.")     
           #  raise FirmwareVersionError("Your firmware is not yet supported. Only version 2 is currently supported.")
@@ -1143,30 +1144,39 @@ class OPCR1(_OPC):
 
         :rtype: NULL
         """
-        spi_opc_ready = 0xF3
-        spi_opc_busy = 0x31
-        message = self.cnxn.xfer([spi_command])[0]
-        sleep(1e-3)
-        attempt = 0
-        while attempt < 20 & message != spi_opc_ready:
-            attempt += 1
-            if message != spi_opc_ready:
-                message = self.cnxn.xfer([spi_command])[0]
-                if message != spi_opc_ready:
-                    sleep(1e-3)   # Wait 1ms before retrying
 
-        if message != spi_opc_ready:
-            if message == spi_opc_busy:
-                self.cnxn.flush()
+        message =self._attempt_get_ready_response(spi_command)
+        logger.debug("Byte received: 0x%02x",message)
+        if message != self.spi_opc_ready:
+            if message == self.spi_opc_busy:
+                logger.warning("OPCR1 busy")
+                #self.cnxn.flush()
                 sleep(2)
-                raise Exception("Waiting 2s (for OPC comms timeout)")
+                logger.warning("Waiting 2s (for OPC comms timeout)")
+                message = self._attempt_get_ready_response(spi_command)
+                if message != self.spi_opc_ready:
+                    logger.error("OPCR1 not responding - quitting")
+                    self.cnxn.close()
+                    quit(1)
             else:
-                self.cnxn .flush()
-                self.off()
-                self.on()
-                raise Exception("Resetting the sensor")
+                logger.error("OPCR1 not responding - quitting")
+                self.cnxn.close()
+                quit(1)
 
                 
+    def _attempt_get_ready_response(self, spi_command):
+        logger.debug("Attempt to read up to 20 times")
+        message = self.cnxn.xfer([spi_command])[0]
+        sleep(1e-3)
+
+        attempt = 0
+        while attempt < 20 & message != self.spi_opc_ready:
+            attempt += 1
+            if message != self.spi_opc_ready:
+                message = self.cnxn.xfer([spi_command])[0]
+                if message != self.spi_opc_ready:
+                    sleep(1e-3)   # Wait 1ms before retrying
+        return message
 
     def on(self):
         """Turn ON the OPC (fan and laser)
@@ -1387,7 +1397,7 @@ class OPCR1(_OPC):
 
                 # Read the config variables by sending 256 empty bytes
         for i in range(256):
-            resp = self.cnxn.xfer([0x00])[0]
+            resp = self.cnxn.xfer([0x3C])[0]
             config.append(resp)
 
         # Add the bin bounds to the dictionary of data [bytes 0-33]
