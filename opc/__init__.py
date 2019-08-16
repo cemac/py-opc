@@ -1131,8 +1131,8 @@ class OPCR1(_OPC):
         self.spi_opc_ready = 0xF3
         self.spi_opc_busy = 0x31
         #if self.firmware['major'] < firmware_min or self.firmware['major'] > firmware_max:
-         #   logger.error("Firmware version is invalid for this device.")     
-          #  raise FirmwareVersionError("Your firmware is not yet supported. Only version 2 is currently supported.")
+        #   logger.error("Firmware version is invalid for this device.")     
+        #  raise FirmwareVersionError("Your firmware is not yet supported. Only version 2 is currently supported.")
 
     def get_ready_response(self, spi_command):
         """
@@ -1146,7 +1146,7 @@ class OPCR1(_OPC):
         """
 
         message = self._attempt_get_ready_response(spi_command)
-        logger.debug("Last byte received: 0x%02x",message)
+        logger.debug("Last byte received: 0x%02x", message)
 
         if message != self.spi_opc_ready:
 
@@ -1237,11 +1237,11 @@ class OPCR1(_OPC):
         # Wait 10 ms
         sleep(10e-3)
 
-        b = self.cnxn.xfer([power])[0]
+        byte = self.cnxn.xfer([power])[0]
 
         sleep(0.1)
 
-        return True if b == 0x04 else False
+        return True if byte == 0x04 else False
 
 
     def set_bin_weighting_index(self, bin_weighting_index):
@@ -1269,11 +1269,11 @@ class OPCR1(_OPC):
         # Wait 10 ms
         sleep(10e-3)
 
-        b = self.cnxn.xfer([bin_weighting_index])[0]
+        byte = self.cnxn.xfer([bin_weighting_index])[0]
 
         sleep(0.1)
 
-        return True if  b == 0x05 else False
+        return True if  byte == 0x05 else False
 
     def read_info_string(self):
         """Reads the information string for the OPC
@@ -1426,7 +1426,7 @@ class OPCR1(_OPC):
         data["PVP"] = config[187]
         data["PowerStatus"] = config[188]
 
-        data["Max TOF"] = self._16bit_unsigned(config[189],config[190])
+        data["Max TOF"] = self._16bit_unsigned(config[189], config[190])
 
         data["LaserDAC"] = config[191]
 
@@ -1652,26 +1652,20 @@ class OPCR1(_OPC):
         True
         """
 
-        logger.warning("This method has not yet been tested yet. Use it at your own risks")
-
-        command = 0x43
-        byte_list = [0x3C, 0x3F, 0x3C, 0x43]
-        success = [ 0x43, 0x3F, 0x3C, 0x3F, 0x3C]
+        byte_list = [0x3F, 0x3C, 0x3F, 0x3C, 0x43]
+        success = [0x43, 0x3F, 0x3C, 0x3F, 0x3C]
         resp = []
 
         # Send the command byte
-        self.get_ready_response(0x11)
+        self.get_ready_response(0x43)
 
         # Wait 10 ms
         sleep(10e-3)
 
-        # append the response of the command byte to the List
-        resp.append(r)
-
         # Send the rest of the config bytes
         for each in byte_list:
-            r = self.cnxn.xfer([each])[0]
-            resp.append(r)
+            res = self.cnxn.xfer([each])[0]
+            resp.append(res)
 
         sleep(0.1)
 
@@ -1692,6 +1686,15 @@ class OPCR1(_OPC):
         return True if self.cnxn.xfer(0x41)[0] == 0xF3 else False
 
     def check_status(self):
+        """Check the status of the OPCR1.
+
+        :rtype: boolean
+
+        :Example:
+
+        >>> alpha.check_status()
+        True
+        """
 
         # Send the command byte
         self.get_ready_response(0xCF)
@@ -1699,9 +1702,23 @@ class OPCR1(_OPC):
         # Wait 10 ms
         sleep(10e-3)
 
-        return True
+        res = self.cnxn.xfer(0xCF)[0]
+        
+        if res == self.spi_opc_ready:
+            return True
+        
+        return False
 
     def reset(self):
+        """Reset the OPCR1.
+
+        :rtype: boolean
+
+        :Example:
+
+        >>> alpha.reset()
+        True
+        """
 
         # Send the command byte
         self.get_ready_response(0x06)
