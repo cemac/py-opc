@@ -1,49 +1,25 @@
-[![status](http://joss.theoj.org/papers/049f6d3dab9391e8353484028148dd0d/status.svg)](http://joss.theoj.org/papers/049f6d3dab9391e8353484028148dd0d)
-[![Build Status](https://travis-ci.org/dhhagan/py-opc.svg?branch=develop)](https://travis-ci.org/dhhagan/py-opc)
-[![PyPI version](https://badge.fury.io/py/py-opc.svg)](https://badge.fury.io/py/py-opc)
-[![Coverage Status](https://coveralls.io/repos/dhhagan/py-opc/badge.svg?branch=master&service=github)](https://coveralls.io/github/dhhagan/py-opc?branch=master)
 [![DOI](https://zenodo.org/badge/30832320.svg)](https://zenodo.org/badge/latestdoi/30832320)
 
 # py-opc
-
-Python library for operating the Alphasense OPC-N2 Optical Particle Counter using a Raspberry Pi (or other linux device). Full documentation can be found [here](http://py-opc.readthedocs.org/en/latest/).
-
+A Fork of the R1 pull request from the py-opc library
 
 ## Dependencies
 
 One of the following, depending on whether you use GPIO pins or a SPI-USB adapter:
-
   1. [`py-spidev`](https://github.com/doceme/py-spidev) - for those using GPIO pins
   1. [`pyusbiss`](https://github.com/dancingquanta/pyusbiss) - for those using a SPI-USB adapter (python3+ only)
 
-### Additional Dependencies for Local Development
-
-If you wish to build the local documentation or run unittests, there are a few additional dependencies that are required including:
-
-  * sphinx
-  * sphinx_rtd_theme
-  * mock
-
-The complete list can be found in `requirements-dev.txt`.
-
 
 ## Installation
+To install a version of the library which self updates on changes, use:
+`pip setup.py develop`
 
-For use on the Raspberry Pi (or any other linux device?), install via pip:
 
-    $ pip install py-opc [--upgrade]
+### USB
+    `pip3 install pyusbiss`
 
-If you are using the SPI-USB adapter only, you will also need to install `pyusbiss`. This can be done as follows:
-
-    $ pip install pyusbiss
-
-Depending on your python setup, you may need to use `pip3` instead of `pip` to install for python3+:
-
-    $ pip3 install pyusbiss
-
-If you are using the GPIO pins to communicate with the OPC-N2, you must download the requirement `py-spidev` as follows:
-
-    $ pip install git+https://github.com/doceme/py-spidev.git
+### GPIO
+    `pip install git+https://github.com/doceme/py-spidev.git`
 
 
 ## License
@@ -53,74 +29,3 @@ If you are using the GPIO pins to communicate with the OPC-N2, you must download
 ## Documentation
 
   Full documentation can be found [here](http://py-opc.readthedocs.org/en/latest/).
-
-  You can also build the documentation by navigating to the `docs` directory and issuing the command:
-
-    $ make html
-
-
-## Sample Script / Getting Started
-
-To quickly get up and running, follow one of the two examples:
-
-### GPIO-connected OPC-N2
-
-Use if you are using the GPIO pins in conjunction with `py-spidev`
-
-    import spidev
-    import opc
-    from time import sleep
-
-    spi = spidev.SpiDev()
-    spi.open(0, 0)
-    spi.mode = 1
-    spi.max_speed_hz = 500000
-
-    alphasense = opc.OPCN2(spi)
-
-    # Turn the opc ON
-    alphasense.on()
-
-    sleep(1)
-
-    # Read the information string
-    print (alphasense.read_info_string())
-
-    # Read the histogram
-    print (alphasense.histogram())
-
-    # Turn the opc OFF
-    alphasense.off()
-
-### SPI-USB Adapter with OPC-N2
-
-Use this approach if you have connected your RPi to the OPC-N2 via a SPI-USB adapter.
-
-**NOTE**: Currently, this method is only supported on python3+ due to limitations in the `pyusbiss` library.
-
-    from usbiss.spi import SPI
-    import opc
-    from time import sleep
-
-    # Build the connector
-    spi = SPI("/dev/ttyACM0")
-
-    # Set the SPI mode and clock speed
-    spi.mode = 1
-    spi.max_speed_hz = 500000
-
-    alpha = opc.OPCN2(spi)
-
-    # Turn on the device
-    alpha.on()
-
-    sleep(1)
-
-    # read the information string
-    print (repr(alpha.read_info_string()))
-
-    # Read the histogram
-    alpha.histogram()
-
-    # Turn the device off
-    alpha.off()
