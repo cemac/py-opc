@@ -1155,11 +1155,14 @@ class OPCR1(_OPC):
             maxat = 20
             while counter < maxat:
                 
-            sleep(5)
-            counter += 1
-            
-            logger.warning("Waiting 5s (for OPC comms timeout): Attempt %d/%d"%(counter,maxattr))
-            message = self._attempt_get_ready_response(spi_command)
+                sleep(5)
+                counter += 1
+
+                logger.warning("Waiting 5s (for OPC comms timeout): Attempt %d/%d"%(counter,maxattr))
+                message = self._attempt_get_ready_response(spi_command)
+                if message == self.spi_opc_ready:
+                    return True
+                
             if message != self.spi_opc_ready:
                 logger.error("OPCR1 not responding - quitting")
                 self.cnxn.close()
