@@ -22,7 +22,7 @@ To install a version of the library which self updates on changes, use:
     `pip install git+https://github.com/doceme/py-spidev.git`
 
 ### LIB
-    `pip setup.py develop`
+    `sudo python3 setup.py develop`
 
 
 ## License
