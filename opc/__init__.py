@@ -1158,7 +1158,7 @@ class OPCR1(_OPC):
                 sleep(5)
                 counter += 1
 
-                logger.warning("Waiting 5s (for OPC comms timeout): Attempt %d/%d"%(counter,maxattr))
+                logger.warning("Waiting 5s (for OPC comms timeout): Attempt %d/%d"%(counter,maxat))
                 message = self._attempt_get_ready_response(spi_command)
                 if message == self.spi_opc_ready:
                     return True
