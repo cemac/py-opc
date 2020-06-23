@@ -21,6 +21,9 @@ To install a version of the library which self updates on changes, use:
 ### GPIO
     `pip install git+https://github.com/doceme/py-spidev.git`
 
+### LIB
+    `pip setup.py develop`
+
 
 ## License
 
